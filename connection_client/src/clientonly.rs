@@ -13,7 +13,7 @@ pub fn update() -> Result<(), Box<dyn ::std::error::Error>> {
     let current_version = env!("CARGO_PKG_VERSION");
     let bulid_result = self_update::backends::github::Update::configure()
         .repo_owner("k4210")
-        .repo_name("connection")
+        .repo_name("connection_client")
         .bin_name("connection_client.exe")
         .show_download_progress(true)
         .current_version(current_version)

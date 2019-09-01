@@ -2,7 +2,7 @@ extern crate tokio;
 extern crate futures;
 extern crate bytes;
 extern crate connection_utils;
-extern crate ipconfig;
+extern crate get_if_addrs;
 
 use tokio::net::TcpListener;
 use tokio::prelude::*;
@@ -27,19 +27,27 @@ impl Shared {
     }
 }
 
+fn list_clients(state: & HashMap<SocketAddr, (connection_utils::Sender, Option<String>)>) -> String {
+    let mut result = String::new();
+    for (_, (_, name_opt)) in state {
+        if let Some(name) = name_opt {
+            result += " ";
+            result += name;
+        }
+    }
+    return result;
+}
 
 pub fn list_ip() -> Option<IpAddr>{
     let mut res : Option<IpAddr> = Option::None;
-    for adapter in ipconfig::get_adapters().unwrap() {
-        if (adapter.oper_status() == ipconfig::OperStatus::IfOperStatusUp) && 
-            (adapter.if_type() != ipconfig::IfType::SoftwareLoopback) {
-            for ip in adapter.ip_addresses() {
-                if ip.is_ipv4() {
-                    println!(">>> Found network adapter: {} {:?}", adapter.friendly_name(), ip);
-                    if let None = res
-                    {
-                        res = Some(*ip);
-                    }
+    for iface in get_if_addrs::get_if_addrs().unwrap() {
+        if !iface.is_loopback() {
+            let ip = iface.ip(); 
+            if ip.is_ipv4() {
+                println!(">>> Found network adapter: {:?}", ip);
+                if let None = res
+                {
+                    res = Some(ip);
                 }
             }
         }
@@ -64,6 +72,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             let (sender, receiver) = futures::sync::mpsc::channel(connection_utils::CHANNEL_BUFF_SIZE);
             let addr = socket.peer_addr().unwrap();
             let local_state1 = local_state.clone();
+            let list_str = ">>> Other user(s):".to_string() + &list_clients(&state.peers.lock().unwrap());
             state.peers.lock().unwrap().insert(addr, (sender, None));
             let con = connection_utils::TextConnection::new(local_console.clone(), receiver, socket
                 , Box::new(move |connection: &connection_utils::TextConnection, msg : String|{
@@ -72,21 +81,20 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let mut out_msg: String = String::new();
                 if let Some(val) = mg.get_mut(&addr) {
                     match val {
-                        (_, None) => {
-                            print(&connection.console , format!(">>> New client: {} {:?}", msg, &addr));
+                        (sender, None) => {
+                            out_msg = format!(">>> New user: {} {:?}", &msg, &addr);
                             val.1 = Some(msg);
-                            return;
+                            connection_utils::pass_line(sender, list_str.clone()).unwrap();
                         },
                         (_, Some(name)) => {
-                            out_msg = format!("{}: {}", &name, msg);
+                            out_msg = format!("{}: {}", &name, &msg);
                         }
                     }
                 } else {
-                    print(&connection.console , format!(">>> Unknown address: {:?}", &addr));
+                    print(&connection.console, format!(">>> Unknown address: {:?}", &addr));
                 }
-
-                for (addrit, (sender, _)) in &mut (*mg) {
-                    if *addrit != addr {
+                for (addrit, (sender, name)) in &mut (*mg) {
+                    if *addrit != addr && *name != None {
                         connection_utils::pass_line(sender, out_msg.clone()).unwrap();
                     }
                 }
@@ -95,7 +103,14 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             let local_console1 = local_console.clone(); 
             let local_state2 = local_state.clone();
             let match_connection = con.and_then(move |_|{
-                local_state2.peers.lock().unwrap().remove(&addr);
+                let mut mg = local_state2.peers.lock().unwrap();
+                mg.remove(&addr);
+                let list_str = ">>> Connected user(s):".to_string() + &list_clients(&mg);
+                for (_, (sender, name)) in &mut (*mg) {
+                    if *name != None {
+                        connection_utils::pass_line(sender, list_str.clone()).unwrap();
+                    }
+                }
                 Ok(())
             }).map_err(move |e| {
                 print(&local_console1, format!(">>> transfer error = {:?}", e));

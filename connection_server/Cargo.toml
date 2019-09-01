@@ -8,13 +8,7 @@ edition = "2018"
 
 [dependencies]
 tokio = "0.1"
-tokio-io = "0.1"
 futures = "0.1"
 bytes = "0.4"
-ansi-escapes = "0.1"
-console = "0.8"
-ascii = "1.0"
-dirs = "2.0"
-self_update = "0.6"
-ipconfig = "0.2"
+get_if_addrs = "0.5"
 connection_utils={ path = "../connection_utils" }
