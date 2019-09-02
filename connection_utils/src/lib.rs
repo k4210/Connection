@@ -238,7 +238,6 @@ impl Future for TextConnection {
                 },
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Ok(Async::Ready(None)) | Err(_) => { 
-                    print(&self.console, ">>> Connection ended.".to_string());
                     return Ok(Async::Ready(()));
                 }
             }

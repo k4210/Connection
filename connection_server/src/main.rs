@@ -71,6 +71,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .for_each(move |socket| {
             let (sender, receiver) = futures::sync::mpsc::channel(connection_utils::CHANNEL_BUFF_SIZE);
             let addr = socket.peer_addr().expect("Socket addr 0");
+            print(&local_console, format!(">>> {} connected", &addr));
             let local_state1 = local_state.clone();
             let handle_users = || -> String { 
                 let mut mg = state.peers.lock().expect("State lock 0");
@@ -83,20 +84,17 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 , Box::new(move |connection: &connection_utils::TextConnection, msg : String|{
                 let addr = connection.lines.socket.peer_addr().expect("Socket address 1");
                 let mut mg = local_state1.peers.lock().expect("State lock 1");
-                let mut out_msg: String = String::new();
-                if let Some(val) = mg.get_mut(&addr) {
-                    match val {
-                        (sender, None) => {
-                            out_msg = format!(">>> New user: {} {:?}", &msg, &addr);
-                            val.1 = Some(msg);
-                            connection_utils::pass_line(sender, list_str.clone()).expect("Pass msg1");
-                        },
-                        (_, Some(name)) => {
-                            out_msg = format!("{}: {}", &name, &msg);
-                        }
+                let out_msg: String;
+                let mut val = mg.get_mut(&addr).expect("Unknown address");
+                match val {
+                    (sender, None) => {
+                        out_msg = format!(">>> New user: {} {:?}", &msg, &addr);
+                        val.1 = Some(msg);
+                        connection_utils::pass_line(sender, list_str.clone()).expect("Pass msg1");
+                    },
+                    (_, Some(name)) => {
+                        out_msg = format!("{}: {}", &name, &msg);
                     }
-                } else {
-                    print(&connection.console, format!(">>> Unknown address: {:?}", &addr));
                 }
                 for (addrit, (sender, name)) in &mut (*mg) {
                     if *addrit != addr && *name != None {
@@ -111,13 +109,17 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             let match_connection = con.and_then(move |_|{
                 let mut mg = local_state2.peers.lock().expect("State lock 3");
                 mg.remove(&addr);
-                let list_str = ">>> Connected user(s):".to_string() + &list_clients(&mg);
-                for (_, (sender, name)) in &mut (*mg) {
-                    if *name != None {
-                        connection_utils::pass_line(sender, list_str.clone()).expect("Pass msg3");
+                if let Some((_, Some(disconected_name))) = mg.get(&addr) {
+                    let list_str = format!(">>> {} left. User(s): {}", disconected_name, &list_clients(&mg));
+                    for (_, (sender, name)) in &mut (*mg) {
+                        if *name != None {
+                            connection_utils::pass_line(sender, list_str.clone()).expect("Pass msg3");
+                        }
                     }
+                    print(&local_console1, list_str);
+                } else { 
+                    print(&local_console1, format!(">>> {} disconnected", &addr)); 
                 }
-                print(&local_console1, list_str);
                 Ok(())
             }).map_err(move |e| {
                 print(&local_console2, format!(">>> transfer error = {:?}", e));

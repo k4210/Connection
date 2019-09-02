@@ -58,7 +58,6 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         let local_console = console.clone();
         let local_console2 = console.clone();
         let connection = TcpStream::connect(&connect_addr).and_then(move |socket| {
-            print(&local_console, ">>> Connected!".to_string());
             let peer = connection_utils::TextConnection::new(local_console.clone()
                 , receiver, socket, Box::new(handle_received_msg));
             let match_peer = peer.map_err(move |e| {
