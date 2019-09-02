@@ -108,8 +108,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             let local_state2 = local_state.clone();
             let match_connection = con.and_then(move |_|{
                 let mut mg = local_state2.peers.lock().expect("State lock 3");
-                mg.remove(&addr);
-                if let Some((_, Some(disconected_name))) = mg.get(&addr) {
+                if let Some((_, Some(disconected_name))) = mg.remove(&addr) {
                     let list_str = format!(">>> {} left. User(s): {}", disconected_name, &list_clients(&mg));
                     for (_, (sender, name)) in &mut (*mg) {
                         if *name != None {

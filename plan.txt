@@ -1,6 +1,5 @@
-let dissconnect gracefully
-history
-test external connection
-update
+history + use name, not y
+test external connection + DNS
+update client
 tls
 files
