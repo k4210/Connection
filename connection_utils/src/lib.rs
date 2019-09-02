@@ -217,7 +217,7 @@ impl Future for TextConnection {
 
     fn poll(&mut self) -> Poll<(), io::Error> {
         for i in 0..LINES_PER_TICK {
-            match self.receiver.poll().unwrap() {
+            match self.receiver.poll().expect("Receiver poll") {
                 Async::Ready(Some(v)) => {
                     self.lines.buffer(&v);
                     if i + 1 == LINES_PER_TICK {
@@ -238,7 +238,7 @@ impl Future for TextConnection {
                 },
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Ok(Async::Ready(None)) | Err(_) => { 
-                    print(&self.console, format!(">>> {:?} DISCONNECTED", self.lines.socket.peer_addr().unwrap()));
+                    print(&self.console, ">>> Connection ended.".to_string());
                     return Ok(Async::Ready(()));
                 }
             }

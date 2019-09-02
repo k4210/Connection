@@ -1,3 +1,5 @@
+let dissconnect gracefully
+history
 test external connection
 update
 tls
