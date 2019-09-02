@@ -106,6 +106,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 print(&connection.console, out_msg);
             }));
             let local_console1 = local_console.clone(); 
+            let local_console2 = local_console.clone(); 
             let local_state2 = local_state.clone();
             let match_connection = con.and_then(move |_|{
                 let mut mg = local_state2.peers.lock().expect("State lock 3");
@@ -116,9 +117,10 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                         connection_utils::pass_line(sender, list_str.clone()).expect("Pass msg3");
                     }
                 }
+                print(&local_console1, list_str);
                 Ok(())
             }).map_err(move |e| {
-                print(&local_console1, format!(">>> transfer error = {:?}", e));
+                print(&local_console2, format!(">>> transfer error = {:?}", e));
             });
             tokio::spawn(match_connection);
             Ok(())
