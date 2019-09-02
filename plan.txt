@@ -1,5 +1,4 @@
-connected users
-run server on linux
 test external connection
+update
 tls
 files
