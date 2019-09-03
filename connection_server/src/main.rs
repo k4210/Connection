@@ -14,16 +14,29 @@ use std::net::IpAddr;
 use std::collections::HashMap;
 use connection_utils::SafeConsole;
 use connection_utils::print;
+use connection_utils::TextConnection;
+use std::collections::VecDeque;
+
+pub const HISTORY_SIZE: usize = 16;
 
 struct Shared {
-    peers: Mutex<HashMap<SocketAddr, (connection_utils::Sender, Option<String>)>>
+    peers: Mutex<HashMap<SocketAddr, (connection_utils::Sender, Option<String>)>>,
+    history: Mutex<VecDeque<String>>
 }
 
 impl Shared {
     fn new() -> Self {
         Shared {
             peers: Mutex::new(HashMap::new()),
+            history: Mutex::new(VecDeque::with_capacity(HISTORY_SIZE))
         }
+    }
+    fn push_history(&self, msg: String){
+        let mut local_history = self.history.lock().expect("history");
+        if local_history.len() == HISTORY_SIZE {
+            local_history.pop_front();
+        } 
+        local_history.push_back(msg);
     }
 }
 
@@ -72,16 +85,15 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             let (sender, receiver) = futures::sync::mpsc::channel(connection_utils::CHANNEL_BUFF_SIZE);
             let addr = socket.peer_addr().expect("Socket addr 0");
             print(&local_console, format!(">>> {} connected", &addr));
-            let local_state1 = local_state.clone();
             let handle_users = || -> String { 
                 let mut mg = state.peers.lock().expect("State lock 0");
-                let users = ">>> Other user(s):".to_string() + &list_clients(&mg);
+                let users = ">>>Connected! Other user(s):".to_string() + &list_clients(&mg);
                 mg.insert(addr, (sender, None));
                 users
             };
             let list_str = handle_users();
-            let con = connection_utils::TextConnection::new(local_console.clone(), receiver, socket
-                , Box::new(move |connection: &connection_utils::TextConnection, msg : String|{
+            let local_state1 = local_state.clone();
+            let con = TextConnection::new(local_console.clone(), receiver, socket, Box::new(move |connection: &TextConnection, msg : String|{
                 let addr = connection.lines.socket.peer_addr().expect("Socket address 1");
                 let mut mg = local_state1.peers.lock().expect("State lock 1");
                 let out_msg: String;
@@ -90,10 +102,14 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                     (sender, None) => {
                         out_msg = format!(">>> New user: {} {:?}", &msg, &addr);
                         val.1 = Some(msg);
+                        for line in local_state1.history.lock().expect("history1").iter() {
+                            connection_utils::pass_line(sender, line.clone()).expect("Pass msg0");
+                        }
                         connection_utils::pass_line(sender, list_str.clone()).expect("Pass msg1");
                     },
                     (_, Some(name)) => {
                         out_msg = format!("{}: {}", &name, &msg);
+                        local_state1.push_history(out_msg.clone());
                     }
                 }
                 for (addrit, (sender, name)) in &mut (*mg) {
@@ -109,7 +125,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             let match_connection = con.and_then(move |_|{
                 let mut mg = local_state2.peers.lock().expect("State lock 3");
                 if let Some((_, Some(disconected_name))) = mg.remove(&addr) {
-                    let list_str = format!(">>> {} left. User(s): {}", disconected_name, &list_clients(&mg));
+                    let list_str = format!(">>> {} left. User(s):{}", disconected_name, &list_clients(&mg));
                     for (_, (sender, name)) in &mut (*mg) {
                         if *name != None {
                             connection_utils::pass_line(sender, list_str.clone()).expect("Pass msg3");
