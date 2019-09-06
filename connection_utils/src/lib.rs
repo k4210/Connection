@@ -6,6 +6,7 @@ extern crate bytes;
 extern crate ascii;
 extern crate ansi_escapes;
 extern crate console;
+//extern crate hyper;
 
 use bytes::{BufMut, Bytes, BytesMut}; 
 use tokio::io;
@@ -17,7 +18,8 @@ use std::sync::{Arc, Mutex};
 
 pub type Sender = futures::sync::mpsc::Sender<Bytes>;
 pub type Receiver = futures::sync::mpsc::Receiver<Bytes>;
-pub const SERVER_PORT: u16 = 49494;
+pub const SERVER_PORT_TEXT: u16 = 49494;
+pub const SERVER_PORT_FILE: u16 = 49495;
 pub const CHANNEL_BUFF_SIZE: usize = 1024usize;
 pub const LINES_PER_TICK: usize = 10;
 
@@ -37,7 +39,7 @@ impl ConsoleBuf {
         ConsoleBuf { read_bytes: String::new() }
     }
 
-    pub fn cprint(&self, msg: String){
+    pub fn cprint(&self, msg: &String){
         print!("{}\r{}\n{}\r{}", ansi_escapes::EraseLine, msg, ansi_escapes::EraseLine, self.read_bytes);
         let _ = std::io::stdout().flush();
     }
@@ -199,7 +201,7 @@ pub fn pass_line(sender: &mut Sender, line : String) -> Result<(), futures::sync
 pub type SafeConsole = Arc<Mutex<ConsoleBuf>>;
 pub type HandleReceivedFn = dyn Fn(&TextConnection, String)->() + Send;
 pub fn print(console: &SafeConsole, line : String) {
-    console.lock().unwrap().cprint(line);
+    console.lock().unwrap().cprint(&line);
 }
 
 //////////////////////////////////////////////////////////////////
@@ -257,3 +259,4 @@ impl TextConnection {
 }
 
 //////////////////////////////////////////////////////////////////
+

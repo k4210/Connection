@@ -11,4 +11,5 @@ tokio = "0.1"
 futures = "0.1"
 bytes = "0.4"
 get_if_addrs = "0.5"
+hyper = "0.12"
 connection_utils={ path = "../connection_utils" }

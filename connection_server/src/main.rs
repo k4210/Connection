@@ -73,7 +73,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let version = env!("CARGO_PKG_VERSION");
     print(&console, format!(">>> Connection version: {}", version));
     let my_ip: IpAddr = list_ip().expect("a valid ip");
-    let listen_addr = SocketAddr::new(my_ip, connection_utils::SERVER_PORT);
+    let listen_addr = SocketAddr::new(my_ip, connection_utils::SERVER_PORT_TEXT);
     print(&console, format!(">>> Listen on: {:?}", listen_addr));
     let listener = TcpListener::bind(&listen_addr)?;
     let state = Arc::new(Shared::new());

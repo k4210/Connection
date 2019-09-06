@@ -15,5 +15,12 @@ ansi-escapes = "0.1"
 console = "0.8"
 ascii = "1.0"
 dirs = "2.0"
-self_update = "0.6.0"
+self_update = "0.6"
+hyper = "0.12"
+lazy_static = "1.4"
+ipconfig = "0.2"
 connection_utils={ path = "../connection_utils" }
+
+[profile.release]
+lto = true
+panic = 'abort'

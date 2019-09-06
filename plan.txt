@@ -1,4 +1,3 @@
-test external connection + DNS
-update client
 tls
 files
+DNS
