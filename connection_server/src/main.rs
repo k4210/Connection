@@ -115,6 +115,26 @@ fn handle_text_connection(socket :TcpStream) -> Result<(), std::io::Error> {
 
 ////////////////////////////////////////////////////////////////////////////////////////
 
+fn save_body_to_file_blocking_log(body: hyper::Body, file_path: &std::path::PathBuf) -> Result<(), std::io::Error> {
+    body
+        .fold(Vec::new(), |mut v, chunk| {
+            print(">>> Received chunk");
+            v.extend(&chunk[..]);
+            future::ok::<_, hyper::Error>(v)
+        })
+        .map_err(|err| { std::io::Error::new(std::io::ErrorKind::Other, err.to_string()) })
+        .and_then(move |chunks| {
+            print(">>> Creating file ...");
+            let mut file = std::fs::File::create(file_path)?;
+            print(">>> Writing file ...");
+            if let Err(e) = file.write_all(&chunks) { return Err(e); }
+            print(">>> Syncing file ...");
+            if let Err(e) = file.sync_all()  { return Err(e); }
+            Ok(())
+        })
+        .wait()
+}
+
 fn handle_file_server_request(request: hyper::Request<hyper::Body>) -> hyper::Response<hyper::Body> {
     print(&format!(">>> Request received {:?}", request));
 
@@ -138,7 +158,7 @@ fn handle_file_server_request(request: hyper::Request<hyper::Body>) -> hyper::Re
     ///// PUT
     if method == hyper::Method::PUT {
         print(&format!(">>> Receiving file... {:?}", &file_path));
-        if let Err(e) = connection_utils::save_body_to_file_blocking(request.into_body(), &file_path) {
+        if let Err(e) = save_body_to_file_blocking_log(request.into_body(), &file_path) {
             print(&format!(">>> Receiving file error: {:?}", e));
             return hyper::Response::builder().status(hyper::http::StatusCode::INTERNAL_SERVER_ERROR).body(hyper::Body::empty()).unwrap();
         }
