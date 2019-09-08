@@ -115,8 +115,8 @@ fn handle_text_connection(socket :TcpStream) -> Result<(), std::io::Error> {
 
 ////////////////////////////////////////////////////////////////////////////////////////
 
-fn save_body_to_file_blocking_log(body: hyper::Body, file_path: &std::path::PathBuf) -> Result<(), std::io::Error> {
-    body
+fn spawn_save_body_to_file(body: hyper::Body, file_path: std::path::PathBuf){
+    let task = body
         .fold(Vec::new(), |mut v, chunk| {
             print(">>> Received chunk");
             v.extend(&chunk[..]);
@@ -125,14 +125,24 @@ fn save_body_to_file_blocking_log(body: hyper::Body, file_path: &std::path::Path
         .map_err(|err| { std::io::Error::new(std::io::ErrorKind::Other, err.to_string()) })
         .and_then(move |chunks| {
             print(">>> Creating file ...");
-            let mut file = std::fs::File::create(file_path)?;
+            let mut file = std::fs::File::create(&file_path)?;
             print(">>> Writing file ...");
             if let Err(e) = file.write_all(&chunks) { return Err(e); }
             print(">>> Syncing file ...");
             if let Err(e) = file.sync_all()  { return Err(e); }
+            print(">>> Syncing done!");
+
+            let mut clients = PEERS.lock().expect("clients");
+            let msg = format!("Server received file: {}", file_path.file_name().unwrap().to_str().unwrap());            
+            for (_, (sender, name)) in &mut (*clients) {
+                if *name != None {
+                    connection_utils::pass_line(sender, msg.clone()).expect("Pass msg");
+                }
+            }
+            push_history(msg);
             Ok(())
-        })
-        .wait()
+        }).map_err(|err| { print(&format!("save_body_to_file error: {:?}", err)); });
+    tokio::spawn(task);
 }
 
 fn handle_file_server_request(request: hyper::Request<hyper::Body>) -> hyper::Response<hyper::Body> {
@@ -158,24 +168,7 @@ fn handle_file_server_request(request: hyper::Request<hyper::Body>) -> hyper::Re
     ///// PUT
     if method == hyper::Method::PUT {
         print(&format!(">>> Receiving file... {:?}", &file_path));
-        let body = request.into_body();
-        print(">>> has body");
-        let save_result = save_body_to_file_blocking_log(body, &file_path);
-        if let Err(e) = save_result {
-            print(&format!(">>> Receiving file error: {:?}", e));
-            return hyper::Response::builder().status(hyper::http::StatusCode::INTERNAL_SERVER_ERROR).body(hyper::Body::empty()).unwrap();
-        }
-        print(&format!(">>> File saved {:?}", &file_path));
-        {
-            let mut clients = PEERS.lock().expect("clients");
-            let msg = format!("Server received file: {}", filename_str.to_str().unwrap());            
-            for (_, (sender, name)) in &mut (*clients) {
-                if *name != None {
-                    connection_utils::pass_line(sender, msg.clone()).expect("Pass msg");
-                }
-            }
-            push_history(msg);
-        }
+        spawn_save_body_to_file(request.into_body(), file_path);
         let status = if already_exist {hyper::http::StatusCode::OK} else {hyper::http::StatusCode::CREATED};
         return hyper::Response::builder().status(status).body(hyper::Body::empty()).unwrap()
     } 
