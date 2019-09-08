@@ -44,7 +44,7 @@ fn spawn_send_single_file(path_str: String, file_server_uri: String) {
             print(&format!(">>> Reading... {}", &path_str));
             let mut content : Vec<u8> = vec![];
             if let Err(e) = file.read_to_end(&mut content) { return Err(e); }
-            print(&format!(">>> Sending... {}{}", &file_server_uri, &filename));
+            print(&format!(">>> Sending... {}{} {} bytes", &file_server_uri, &filename, content.len()));
             spawn_put_request(content, format!("{}{}", file_server_uri, filename));
             Ok(())
         })

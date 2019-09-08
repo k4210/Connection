@@ -158,7 +158,10 @@ fn handle_file_server_request(request: hyper::Request<hyper::Body>) -> hyper::Re
     ///// PUT
     if method == hyper::Method::PUT {
         print(&format!(">>> Receiving file... {:?}", &file_path));
-        if let Err(e) = save_body_to_file_blocking_log(request.into_body(), &file_path) {
+        let body = request.into_body();
+        print(">>> has body");
+        let save_result = save_body_to_file_blocking_log(body, &file_path);
+        if let Err(e) = save_result {
             print(&format!(">>> Receiving file error: {:?}", e));
             return hyper::Response::builder().status(hyper::http::StatusCode::INTERNAL_SERVER_ERROR).body(hyper::Body::empty()).unwrap();
         }
