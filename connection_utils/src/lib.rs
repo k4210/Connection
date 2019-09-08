@@ -295,22 +295,6 @@ impl TextConnection {
 
 ////////////////////////////////////////////////////////////////// HYPER
 
-pub fn save_body_to_file_blocking(body: hyper::Body, file_path: &std::path::PathBuf) -> Result<(), std::io::Error> {
-    body
-        .fold(Vec::new(), |mut v, chunk| {
-            v.extend(&chunk[..]);
-            future::ok::<_, hyper::Error>(v)
-        })
-        .map_err(|err| { std::io::Error::new(std::io::ErrorKind::Other, err.to_string()) })
-        .and_then(move |chunks| {
-            let mut file = std::fs::File::create(file_path)?;
-            if let Err(e) = file.write_all(&chunks) { return Err(e); }
-            if let Err(e) = file.sync_all()  { return Err(e); }
-            Ok(())
-        })
-        .wait()
-}
-
 pub fn read_file_blocking(file_path: &std::path::Path) -> std::io::Result<Vec<u8>> {
     let mut file = std::fs::File::open(file_path)?;
     let mut data = Vec::new();
