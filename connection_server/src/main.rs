@@ -118,27 +118,23 @@ fn handle_text_connection(socket :TcpStream) -> Result<(), std::io::Error> {
 fn spawn_save_body_to_file(body: hyper::Body, file_path: std::path::PathBuf){
     let task = body
         .fold(Vec::new(), |mut v, chunk| {
-            print(">>> Received chunk");
             v.extend(&chunk[..]);
             future::ok::<_, hyper::Error>(v)
         })
         .map_err(|err| { std::io::Error::new(std::io::ErrorKind::Other, err.to_string()) })
         .and_then(move |chunks| {
-            print(">>> Creating file ...");
             let mut file = std::fs::File::create(&file_path)?;
-            print(">>> Writing file ...");
             if let Err(e) = file.write_all(&chunks) { return Err(e); }
-            print(">>> Syncing file ...");
             if let Err(e) = file.sync_all()  { return Err(e); }
-            print(">>> Syncing done!");
 
             let mut clients = PEERS.lock().expect("clients");
-            let msg = format!("Server received file: {}", file_path.file_name().unwrap().to_str().unwrap());            
+            let msg = format!(">>> Server received file: {}", file_path.file_name().unwrap().to_str().unwrap());            
             for (_, (sender, name)) in &mut (*clients) {
                 if *name != None {
                     connection_utils::pass_line(sender, msg.clone()).expect("Pass msg");
                 }
             }
+            print(&msg);
             push_history(msg);
             Ok(())
         }).map_err(|err| { print(&format!("save_body_to_file error: {:?}", err)); });

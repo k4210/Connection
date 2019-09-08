@@ -57,7 +57,7 @@ fn spawn_send_single_file(path_str: String, file_server_uri: String) {
 fn spawn_receive_file_request(in_filename_str: &String, file_server_uri: &String) {
     let filename_buff = std::path::Path::new(in_filename_str);
     let mut filename = String::new();
-    if filename_buff.is_file() {
+    if let Some(_) = filename_buff.file_stem() {
         if let Some(local_filename) = filename_buff.file_name() {
             filename = local_filename.to_str().expect("string").to_string();
         }
