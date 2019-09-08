@@ -8,26 +8,6 @@ use std::string::String;
 use std::path::Path;
 use std::fs::File;
 use std::io::{BufReader, BufRead};
-use std::net::IpAddr;
-
-pub fn list_ip() -> Option<IpAddr>{
-    let mut res : Option<IpAddr> = Option::None;
-    for adapter in ipconfig::get_adapters().unwrap() {
-        if (adapter.oper_status() == ipconfig::OperStatus::IfOperStatusUp) && 
-            (adapter.if_type() != ipconfig::IfType::SoftwareLoopback) {
-            for ip in adapter.ip_addresses() {
-                if ip.is_ipv4() {
-                    println!(">>> Found network adapter: {} {:?}", adapter.friendly_name(), ip);
-                    if let None = res
-                    {
-                        res = Some(*ip);
-                    }
-                }
-            }
-        }
-    }
-    return res;
-}
 
 pub fn update() -> Result<(), Box<dyn ::std::error::Error>> {
     let current_version = env!("CARGO_PKG_VERSION");
@@ -122,6 +102,25 @@ pub fn parse_send_file(msg : &String) -> Option<String> {
         return None;
     } 
     if !(msg.len() > 8) {
+        //println!(">>> !msg.len() > 8");
+        return None;
+    }
+    let mut result = msg.replace(start_pattern, "");
+    result.pop();
+    Some(result)
+}
+
+pub fn parse_receive_file(msg : &String) -> Option<String> {
+    let start_pattern = ":receive \"";
+    if !msg.starts_with(start_pattern) {
+        //println!(">>> !msg.starts_with");
+        return None;
+    } 
+    if !msg.ends_with('\"') {
+        //println!(">>> !msg.ends_with");
+        return None;
+    } 
+    if !(msg.len() > 10) {
         //println!(">>> !msg.len() > 8");
         return None;
     }

@@ -7,6 +7,10 @@ extern crate ascii;
 extern crate ansi_escapes;
 extern crate console;
 //extern crate hyper;
+#[cfg(linux)]
+extern crate get_if_addrs;
+#[cfg(windows)]
+extern crate ipconfig;
 
 use bytes::{BufMut, Bytes, BytesMut}; 
 use tokio::io;
@@ -27,6 +31,46 @@ pub fn bytes_to_str(buff : &bytes::Bytes) -> String {
     (*String::from_utf8_lossy(&buff[..])).to_string()
 }
 
+/////////////////////////
+#[cfg(windows)]
+pub fn list_ip() -> Option< std::net::IpAddr>{
+    let mut res : Option< std::net::IpAddr> = Option::None;
+    for adapter in ipconfig::get_adapters().unwrap() {
+        if (adapter.oper_status() == ipconfig::OperStatus::IfOperStatusUp) && 
+            (adapter.if_type() != ipconfig::IfType::SoftwareLoopback) {
+            for ip in adapter.ip_addresses() {
+                if ip.is_ipv4() {
+                    println!(">>> Found network adapter: {} {:?}", adapter.friendly_name(), ip);
+                    if let None = res
+                    {
+                        res = Some(*ip);
+                    }
+                }
+            }
+        }
+    }
+    return res;
+}
+
+#[cfg(linux)]
+pub fn list_ip() -> Option< std::net::IpAddr>{
+    let mut res : Option< std::net::IpAddr> = Option::None;
+    for iface in get_if_addrs::get_if_addrs().unwrap() {
+        if !iface.is_loopback() {
+            let ip = iface.ip(); 
+            if ip.is_ipv4() {
+                println!(">>> Found network adapter: {:?}", ip);
+                if let None = res
+                {
+                    res = Some(ip);
+                }
+            }
+        }
+    }
+    return res;
+}
+
+
 ////////////////////
 
 pub struct ConsoleBuf {
@@ -39,7 +83,7 @@ impl ConsoleBuf {
         ConsoleBuf { read_bytes: String::new() }
     }
 
-    pub fn cprint(&self, msg: &String){
+    pub fn cprint(&self, msg: &str){
         print!("{}\r{}\n{}\r{}", ansi_escapes::EraseLine, msg, ansi_escapes::EraseLine, self.read_bytes);
         let _ = std::io::stdout().flush();
     }
@@ -195,21 +239,14 @@ pub fn pass_line(sender: &mut Sender, line : String) -> Result<(), futures::sync
     sender.try_send(outmsg.freeze())
 }
 
-
 //////////////////////////////////////////////////////////////////
 
 pub type SafeConsole = Arc<Mutex<ConsoleBuf>>;
 pub type HandleReceivedFn = dyn Fn(&TextConnection, String)->() + Send;
-pub fn print(console: &SafeConsole, line : String) {
-    console.lock().unwrap().cprint(&line);
-}
-
-//////////////////////////////////////////////////////////////////
 
 pub struct TextConnection {
     pub lines: LinesTcp,
     pub receiver: Receiver,
-    pub console: SafeConsole,
     pub callback: Box<HandleReceivedFn>,
 }
 
@@ -219,13 +256,14 @@ impl Future for TextConnection {
 
     fn poll(&mut self) -> Poll<(), io::Error> {
         for i in 0..LINES_PER_TICK {
-            match self.receiver.poll().expect("Receiver poll") {
-                Async::Ready(Some(v)) => {
+            match self.receiver.poll() {
+                Ok(Async::Ready(Some(v))) => {
                     self.lines.buffer(&v);
                     if i + 1 == LINES_PER_TICK {
                         task::current().notify();
                     }
-                }
+                },
+                Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "receiver poll failed")),
                 _ => break,
             }
         }
@@ -239,24 +277,44 @@ impl Future for TextConnection {
                     (self.callback)(&self, message_str);
                 },
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Ok(Async::Ready(None)) | Err(_) => { 
-                    return Ok(Async::Ready(()));
-                }
+                Ok(Async::Ready(None)) => return Ok(Async::Ready(())),
+                Err(e) => return Err(e),
             }
         }
     }
 }
 
 impl TextConnection {
-    pub fn new(console: SafeConsole, receiver: Receiver, socket: TcpStream, callback: Box<HandleReceivedFn>) -> TextConnection {
+    pub fn new(receiver: Receiver, socket: TcpStream, callback: Box<HandleReceivedFn>) -> TextConnection {
         TextConnection {
             lines: LinesTcp::new(socket),
             receiver,
-            console,
             callback
         }
     }
 }
 
-//////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////// HYPER
 
+pub fn save_body_to_file_blocking(body: hyper::Body, file_path: &std::path::PathBuf) -> Result<(), std::io::Error> {
+    body
+        .fold(Vec::new(), |mut v, chunk| {
+            v.extend(&chunk[..]);
+            future::ok::<_, hyper::Error>(v)
+        })
+        .map_err(|err| { std::io::Error::new(std::io::ErrorKind::Other, err.to_string()) })
+        .and_then(move |chunks| {
+            let mut file = std::fs::File::create(file_path)?;
+            if let Err(e) = file.write_all(&chunks) { return Err(e); }
+            if let Err(e) = file.sync_all()  { return Err(e); }
+            Ok(())
+        })
+        .wait()
+}
+
+pub fn read_file_blocking(file_path: &std::path::Path) -> std::io::Result<Vec<u8>> {
+    let mut file = std::fs::File::open(file_path)?;
+    let mut data = Vec::new();
+    file.read_to_end(&mut data)?;
+    return Ok(data);
+}
