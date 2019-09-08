@@ -60,7 +60,7 @@ fn handle_new_named_user(clients: &mut Clients, addr: &SocketAddr, msg: String) 
     for line in HISTORY.lock().expect("history1").iter() {
         connection_utils::pass_line(sender, line.clone()).expect("Pass msg0");
     }
-    connection_utils::pass_line(sender, format!(">>>Connected! Other user(s): {}", &list_str)).expect("Pass msg1");
+    connection_utils::pass_line(sender, format!(">>> Connected! Other user(s): {}", &list_str)).expect("Pass msg1");
     out_msg
 }
 
@@ -116,6 +116,8 @@ fn handle_text_connection(socket :TcpStream) -> Result<(), std::io::Error> {
 ////////////////////////////////////////////////////////////////////////////////////////
 
 fn handle_file_server_request(request: hyper::Request<hyper::Body>) -> hyper::Response<hyper::Body> {
+    print(&format!(">>> Request received {:?}", request));
+    
     let method = request.method();
     if method != hyper::Method::PUT && method != hyper::Method::GET {
         print(&format!(">>> METHOD_NOT_ALLOWED: {:?}", method));
@@ -149,6 +151,7 @@ fn handle_file_server_request(request: hyper::Request<hyper::Body>) -> hyper::Re
                     connection_utils::pass_line(sender, msg.clone()).expect("Pass msg");
                 }
             }
+            push_history(msg);
         }
         let status = if already_exist {hyper::http::StatusCode::OK} else {hyper::http::StatusCode::CREATED};
         return hyper::Response::builder().status(status).body(hyper::Body::empty()).unwrap()
