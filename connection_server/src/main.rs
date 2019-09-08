@@ -117,7 +117,7 @@ fn handle_text_connection(socket :TcpStream) -> Result<(), std::io::Error> {
 
 fn handle_file_server_request(request: hyper::Request<hyper::Body>) -> hyper::Response<hyper::Body> {
     print(&format!(">>> Request received {:?}", request));
-    
+
     let method = request.method();
     if method != hyper::Method::PUT && method != hyper::Method::GET {
         print(&format!(">>> METHOD_NOT_ALLOWED: {:?}", method));
@@ -126,7 +126,7 @@ fn handle_file_server_request(request: hyper::Request<hyper::Body>) -> hyper::Re
     }
     let path_uri = request.uri().path().to_owned();
     let file_name = std::path::Path::new(&path_uri);
-    if !file_name.is_file() {
+    if None == file_name.file_stem() {
         print(&format!(">>> wrong request path: {:?}", file_name));
         return hyper::Response::builder().status(hyper::http::StatusCode::BAD_REQUEST).body(hyper::Body::empty()).unwrap();
     }
