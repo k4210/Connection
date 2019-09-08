@@ -7,7 +7,7 @@ extern crate ascii;
 extern crate ansi_escapes;
 extern crate console;
 //extern crate hyper;
-#[cfg(linux)]
+#[cfg(unix)]
 extern crate get_if_addrs;
 #[cfg(windows)]
 extern crate ipconfig;
@@ -52,7 +52,7 @@ pub fn list_ip() -> Option< std::net::IpAddr>{
     return res;
 }
 
-#[cfg(linux)]
+#[cfg(unix)]
 pub fn list_ip() -> Option< std::net::IpAddr>{
     let mut res : Option< std::net::IpAddr> = Option::None;
     for iface in get_if_addrs::get_if_addrs().unwrap() {
