@@ -142,8 +142,6 @@ fn spawn_save_body_to_file(body: hyper::Body, file_path: std::path::PathBuf){
 }
 
 fn handle_file_server_request(request: hyper::Request<hyper::Body>) -> hyper::Response<hyper::Body> {
-    print(&format!(">>> Request received {:?}", request));
-
     let method = request.method();
     if method != hyper::Method::PUT && method != hyper::Method::GET {
         print(&format!(">>> METHOD_NOT_ALLOWED: {:?}", method));

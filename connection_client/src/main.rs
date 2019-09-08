@@ -54,6 +54,23 @@ fn spawn_send_single_file(path_str: String, file_server_uri: String) {
 
 /////////////////////////////////////////////////////////////////
 
+fn spawn_save_body_to_file(body: hyper::Body, file_path: std::path::PathBuf) {
+    let task = body
+        .fold(Vec::new(), |mut v, chunk| {
+            v.extend(&chunk[..]);
+            future::ok::<_, hyper::Error>(v)
+        })
+        .map_err(|err| { std::io::Error::new(std::io::ErrorKind::Other, err.to_string()) })
+        .and_then(move |chunks| {
+            let mut file = std::fs::File::create(&file_path)?;
+            if let Err(e) = file.write_all(&chunks) { return Err(e); }
+            if let Err(e) = file.sync_all()  { return Err(e); }
+            print(&format!(">>> Saved {}", file_path.to_str().unwrap()));
+            Ok(())
+        }).map_err(|err| { print(&format!(">>> Save file error: {:?}", err)); });
+    tokio::spawn(task);
+}
+
 fn spawn_receive_file_request(in_filename_str: &String, file_server_uri: &String) {
     let filename_buff = std::path::Path::new(in_filename_str);
     let mut filename = String::new();
@@ -75,10 +92,8 @@ fn spawn_receive_file_request(in_filename_str: &String, file_server_uri: &String
         .and_then(move |res| { 
             if res.status() != hyper::http::StatusCode::OK {
                 print(&format!(">>> Response: {}", res.status())); 
-            } else if let Err(e) = connection_utils::save_body_to_file_blocking(res.into_body(), &download_file_path) {
-                print(&format!(">>> Receiving file error: {:?}", e));
             } else {
-                 print(&format!(">>> Saved: {}", download_file_path.to_str().unwrap()));
+                 spawn_save_body_to_file(res.into_body(), download_file_path);
             }
             Ok(()) 
         }).map_err( move |err| { print(&format!(">>> Receive response error {:?}", err)); });

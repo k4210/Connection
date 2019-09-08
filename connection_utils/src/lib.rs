@@ -277,8 +277,7 @@ impl Future for TextConnection {
                     (self.callback)(&self, message_str);
                 },
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Ok(Async::Ready(None)) => return Ok(Async::Ready(())),
-                Err(e) => return Err(e),
+                Ok(Async::Ready(None)) | Err(_) => return Ok(Async::Ready(())),
             }
         }
     }
